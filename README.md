@@ -86,7 +86,7 @@ Below is an example of a GTF file format. :warning: a real GTF file does not hav
   - a GTF annotation file. The `ITAG4.0_gene_models.sub.gtf` for testing purposes.
 - `.fastq/`: a (hidden) folder containing subsetted paired-end fastq files used to test locally the pipeline. Generated using [Seqtk](https://github.com/lh3/seqtk):
 `seqtk sample -s100 <inputfile> 250000 > <output file>`
-This folder should contain the `fastq` of the paired-end RNA-seq data, you want to run. Download the files from Zenodo: [https://zenodo.org/record/4085316](https://zenodo.org/record/4085316)
+This folder should contain the `fastq` of the paired-end RNA-seq data, you want to run. Download the files from [Zenodo](https://doi.org/10.5281/zenodo.4085315)  
 - `envs/`: a folder containing the environments needed for the pipeline:
   - The `environment.yaml` is used by the conda package manager to create a working environment (see below).
   - The `Dockerfile` is a Docker file used to build the docker image by refering to the `environment.yaml` (see below). 
