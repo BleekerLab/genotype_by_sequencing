@@ -1,0 +1,16 @@
+name: genotype
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - pandas = 0.23
+  - snakemake = 5.20.0
+  - star = 2.7.6a
+  - fastp = 0.19.5
+  - multiqc = 1.9
+  - yaml = 0.2.5
+  - bcftools = 1.14
+  - bedtools = 2.30.0
+  - bedops = 2.4.39
+
