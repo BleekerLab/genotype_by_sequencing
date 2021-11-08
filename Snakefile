@@ -79,13 +79,14 @@ BAM_FILES = expand(RESULT_DIR + "star/{sample}_Aligned.sortedByCoord.out.bam", s
 MAPPING_REPORT = RESULT_DIR + "mapping_summary.csv"
 
 VCF = expand(WORKING_DIR + "vcf/{sample}.vcf", sample = SAMPLES)
+SNP_COUNTS = expand(RESULT_DIR + "{sample}.counts.tsv", sample = SAMPLES)
 
 rule all:
     input:
         MULTIQC,
         BAM_FILES, 
         MAPPING_REPORT,
-        VCF    
+        SNP_COUNTS   
     message:
         "RNA-seq pipeline run complete!"
     shell:
@@ -249,5 +250,81 @@ rule call_snps:
         "--output-type v {input.bam} | "
         "bcftools call --multiallelic-caller --variants-only -Ov - > {output}" 
 
+rule filter_snps:
+    input:
+        WORKING_DIR + "vcf/{sample}.vcf"
+    output:
+        WORKING_DIR + "vcf/{sample}.filtered.vcf"
+    message:
+        "Filtering SNP calls"
+    params:
+        min_read_depth = config["varfilter"]["min_read_depth"]
+    shell:
+        "vcfutils.pl varFilter -d {params.min_read_depth} {input}  > {output}"
 
+rule convert_vcf_to_bed:
+    input:
+        WORKING_DIR + "vcf/{sample}.filtered.vcf"
+    output:
+        WORKING_DIR + "bed/{sample}.filtered.bed"
+    message:
+        "Convert {wildcards.sample} VCF to BED format"
+    shell:
+        "vcf2bed < {input} > {output}"
+
+
+####################
+# Create genome bins
+####################
+
+rule compute_chromosome_sizes:
+    input:
+        fasta = config["refs"]["genome"]
+    output:
+        WORKING_DIR + "genome/chromsizes.txt"
+    message:
+        "Compute genome chromosome sizes"
+    params: 
+        chromsizes_file_name = WORKING_DIR + "genome/genome.fai"
+    shell:
+        "samtools faidx {input.fasta} --output {output}"
+
+rule parse_chromosome_sizes:
+    input: 
+        WORKING_DIR + "genome/chromsizes.txt"
+    output:
+        WORKING_DIR + "genome/chromsizes.parsed.txt"
+    message:
+        "Parse chromosome sizes file to keep the two first columns"
+    shell:
+        "cut -f 1,2 {input} > {output}"
+
+rule create_genome_bins:
+    input:
+        chromsizes = WORKING_DIR + "genome/chromsizes.parsed.txt"
+    output:
+        bed = WORKING_DIR + "genome/genome.bed"
+    message:
+        "Create a BED file from genome chromosome sizes of size {params.window_size}"
+    params:
+        window_size = config["bedtools"]["window_size"]
+    shell:
+        "bedtools makewindows -g {input} -w {params.window_size} > {output}"
+
+##################################
+# Create SNP counts per genome bin
+##################################
+
+rule count_nb_snp_per_genome_bin:
+    input:
+        sample_bed = WORKING_DIR + "bed/{sample}.filtered.bed",
+        genome_bed = WORKING_DIR + "genome/genome.bed"
+    output:
+        RESULT_DIR + "{sample}.counts.tsv"
+    message:
+        "Count number of SNPs in {wildcards.sample} per {params.window_size}"
+    params:
+        window_size = config["bedtools"]["window_size"] 
+    shell:
+        "bedmap --echo --count --delim '\t' {input.genome_bed} {input.sample_bed} > {output}" 
 

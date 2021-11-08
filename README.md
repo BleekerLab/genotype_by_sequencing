@@ -22,7 +22,10 @@ Issues](https://img.shields.io/github/issues/bleekerlab/snakemake_rnaseq.svg)](h
 	- [Real run](#real-run)
 - [Installation and usage \(HPC cluster\)](#installation-and-usage-hpc-cluster)
 	- [Installation](#installation-1)
-	- [Usage](#usage-1)
+	- [SLURM sbatch usage](#slurm-sbatch-usage)
+	- [SLURM interactive usage](#slurm-interactive-usage)
+	- [Retrieving your results](#retrieving-your-results)
+	- [Useful links](#useful-links)
 - [Directed Acyclic Graph of jobs](#directed-acyclic-graph-of-jobs)
 - [References :green_book:](#references-green_book)
 	- [Authors](#authors)
@@ -83,7 +86,7 @@ Below is an example of a GTF file format. :warning: a real GTF file does not hav
   - a GTF annotation file. The `ITAG4.0_gene_models.sub.gtf` for testing purposes.
 - `.fastq/`: a (hidden) folder containing subsetted paired-end fastq files used to test locally the pipeline. Generated using [Seqtk](https://github.com/lh3/seqtk):
 `seqtk sample -s100 <inputfile> 250000 > <output file>`
-This folder should contain the `fastq` of the paired-end RNA-seq data, you want to run.
+This folder should contain the `fastq` of the paired-end RNA-seq data, you want to run. Download the files from Zenodo: [https://zenodo.org/record/4085316](https://zenodo.org/record/4085316)
 - `envs/`: a folder containing the environments needed for the pipeline:
   - The `environment.yaml` is used by the conda package manager to create a working environment (see below).
   - The `Dockerfile` is a Docker file used to build the docker image by refering to the `environment.yaml` (see below). 
@@ -124,8 +127,51 @@ You will need a local copy of the GitHub `genotype_from_rnaseq` repository on yo
 - click on ["Clone or download"](https://github.com/BleekerLab/genotype_from_rnaseq/archive/master.zip) and select `download`. 
 - Then navigate inside the `genotype_from_rnaseq` folder using Shell commands.
 
-## Usage
+## SLURM sbatch usage
 See the detailed protocol [here](./hpc/README.md). 
+
+Here is an example script to be saved as `my_run.sh` and executed with SLURM as `sbatch my_run.sh`  
+This will submit the batch script to SLURM sbatch. 
+
+```bash
+#!/bin/bash
+#
+#SBATCH --job-name=snakemake_rnaseq     # job name
+#SBATCH  --time=24:00:00                # mail events (NONE, BEGIN, END, FAIL, ALL)
+#SBATCH --mail-type=END,FAIL            # When to send emails
+#SBATCH --mail-user=m.galland@uva.nl    # email address
+#SBATCH --mem-per-cpu=8G                # RAM requested per job (in Snakemake, one rule = one job)
+#SBATCH --output=parallel_%j.log        # standard output and error log (%j substitutes the JOB ID)
+
+
+#SBATCH --nodes=1                       # Run all processes on a single node	
+#SBATCH --cpus-per-task=30              # Number of CPUs per task
+
+source activate genotype
+
+srun snakemake -j $SLURM_CPUS_PER_TASK
+```
+
+## SLURM interactive usage 
+
+To start an interactive session, do: 
+
+- Step1: `srun --time=24:00:00 --mem-per-cpu=8G --cpus-per-task=10 --pty bash -i`    
+- Step2: `conda activate rnaseq`    
+- Step3: `snakemake -j 10` (since we specified 10 cpus per task)    
+- Step4: `exit`  
+
+This starts an interactive bash with 10 CPUs allocated per task and 8G of RAM per CPU. 
+
+## Retrieving your results
+
+For instance, download the results but exclude bam files (too big).   
+`rsync -a -v -e ssh --exclude="*bam"  mgallan1@omics-h0.science.uva.nl:/zfs/omics/personal/mgallan1/workspace/genotype_from_rnaseq/results/ [local directory]`
+
+## Useful links
+- [Snakemake with SLURM](https://accio.github.io/programming/2020/06/16/Snakemake-with-slurm.html)
+- [`sbatch` manual with its options](https://slurm.schedmd.com/sbatch.html)
+
 
 # Directed Acyclic Graph of jobs
 ![dag](./dag.png)

@@ -41,10 +41,17 @@ star:
   samattributes:          'NH HI AS nM MD'         # SAM attributes (by default only NH HI AS nM). See STAR manual
 
 
-###############
-# bcftools
-###############
+#########################
+# SNPs and BED operations
+#########################
 
 bcftools:
   max_depth: 10000          # At a position, read maximally INT reads per input file.
   min_base_quality: 30      # Minimum base quality for a base to be considered. 
+
+varfilter:
+  min_read_depth: 10
+
+bedtools:
+  window_size: 1000 # 1Mb = 1,000,000
+
