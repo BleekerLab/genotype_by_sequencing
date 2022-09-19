@@ -1,4 +1,4 @@
-# Genotyping from RNA-seq data
+# Genotyping by sequencing (DNA- or RNA-seq data)
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥5.2.0-brightgreen.svg)](https://snakemake.bitbucket.io)    
 [![Miniconda](https://img.shields.io/badge/miniconda-blue.svg)](https://conda.io/miniconda)
@@ -38,14 +38,14 @@ Issues](https://img.shields.io/github/issues/bleekerlab/snakemake_rnaseq.svg)](h
 
 # Description
 
-A Snakemake pipeline that calls SNPs (Single Nucleotide Polymorphisms) from _messenger_ RNA-seq data. It trims and aligns mRNA-seq fastq to a reference genome, then call SNPs before computing the number of SNPs per genomic window (e.g. per 1Mb). 
+A Snakemake pipeline that calls SNPs (Single Nucleotide Polymorphisms) from either DNA-seq or mRNA-seq data. It trims and aligns DNA/mRNA-seq fastq to a reference genome, then call SNPs before computing the number of SNPs per genomic window (e.g. per 1Mb). 
 This pipeline can process single or paired-end data and is mostly suited for Illumina sequencing data. 
 
 ## Description
 This pipeline analyses the raw RNA-seq data and produces two files containing the raw and normalized counts. 
 
 1. The raw fastq files will be trimmed for adaptors and quality checked with `fastp`.  
-2. The genome sequence FASTA file will be used for the mapping step of the trimmed reads using `STAR`. 
+2. The genome sequence FASTA file will be used for the mapping step of the trimmed reads using either `bwa` or `STAR`. 
 3. The reference genome will be sliced into bins of a pre-determined size (e.g. 1Mb).  
 4. SNPs are called based on the alignment `.bam` files generating one VCF file per sample.
 5. SNPs are filtered based on a depth threshold. 
@@ -54,9 +54,9 @@ This pipeline analyses the raw RNA-seq data and produces two files containing th
 
 
 ## Input files
-* __RNA-seq fastq files__ as listed in the `config/samples.tsv` file. Specify a sample name (e.g. "Sample_A") in the `sample` column and the paths to the forward read (`fq1`) and to the reverse read (`fq2`). If you have single-end reads, leave the `fq2` column empty. 
+* __DNA or RNA-seq fastq files__ as listed in the `config/samples.tsv` file. Specify a sample name (e.g. "Sample_A") in the `sample` column, a data type (`DNA` or `RNA`) and the paths to the forward read (`fq1`) and to the reverse read (`fq2`). If you have single-end reads, leave the `fq2` column empty. 
 * __A genomic reference in FASTA format__. For instance, a fasta file containing the 12 chromosomes of tomato (*Solanum lycopersicum*).
-* __(optionally) A genome annotation file in the [GTF format](https://useast.ensembl.org/info/website/upload/gff.html)__. You can convert a GFF annotation file format into GTF with the [gffread program from Cufflinks](http://ccb.jhu.edu/software/stringtie/gff.shtml): `gffread my.gff3 -T -o my.gtf`. :warning: for featureCounts to work, the _feature_ in the GTF file should be `exon` while the _meta-feature_ has to be `transcript_id`. This will be converted to a BED file to compute the number of genes per genomic bin. 
+* __(for RNA-seq datasets) A genome annotation file in the [GTF format](https://useast.ensembl.org/info/website/upload/gff.html)__. You can convert a GFF annotation file format into GTF with the [gffread program from Cufflinks](http://ccb.jhu.edu/software/stringtie/gff.shtml): `gffread my.gff3 -T -o my.gtf`. :warning: for featureCounts to work, the _feature_ in the GTF file should be `exon` while the _meta-feature_ has to be `transcript_id`. This will be converted to a BED file to compute the number of genes per genomic bin. 
 
 Below is an example of a GTF file format. :warning: a real GTF file does not have column names (seqname, source, etc.). Remove all non-data rows. 
 
@@ -84,22 +84,19 @@ Below is an example of a GTF file format. :warning: a real GTF file does not hav
 - `config/refs/`: a folder containing
   - a genomic reference in fasta format. The `S_lycopersicum_chromosomes.4.00.chrom1.fa` is placed for testing purposes.
   - a GTF annotation file. The `ITAG4.0_gene_models.sub.gtf` for testing purposes.
-- `.fastq/`: a (hidden) folder containing subsetted paired-end fastq files used to test locally the pipeline. Generated using [Seqtk](https://github.com/lh3/seqtk):
-`seqtk sample -s100 <inputfile> 250000 > <output file>`
-This folder should contain the `fastq` of the paired-end RNA-seq data, you want to run. Download the files from [Zenodo](https://doi.org/10.5281/zenodo.4085315)  
-- `envs/`: a folder containing the environments needed for the pipeline:
-  - The `environment.yaml` is used by the conda package manager to create a working environment (see below).
-  - The `Dockerfile` is a Docker file used to build the docker image by refering to the `environment.yaml` (see below). 
+- The `environment.yaml` is used by the conda package manager to create a working environment (see below).
 
+You have to create the `config/fastq/` folder that should contain test fastq files. These test fastq files are subsetted paired-end fastq files used to test locally the pipeline. They are generated using [Seqtk](https://github.com/lh3/seqtk):`seqtk sample -s100 <inputfile> 250000 > <output file>`. 
+Files can be downloaded from [Zenodo](https://doi.org/10.5281/zenodo.4085315).  
 
 # Installation and usage (local machine)
 
 ## Installation
 
-You will need a local copy of the GitHub `genotype_from_rnaseq` repository on your machine. You can either:
-- use git in the shell: `git clone git@github.com:BleekerLab/genotype_from_rnaseq.git`.
-- click on ["Clone or download"](https://github.com/BleekerLab/genotype_from_rnaseq/archive/master.zip) and select `download`. 
-- Then navigate inside the `genotype_from_rnaseq` folder using Shell commands.
+You will need a local copy of the GitHub `genotype_by_sequencing` repository on your machine. You can either:
+- use git in the shell: `git clone git@github.com:BleekerLab/genotype_by_sequencing.git`.
+- click on ["Clone or download"](https://github.com/BleekerLab/genotype_by_sequencing/archive/master.zip) and select `download`. 
+- Then navigate inside the `genotype_by_sequencing` folder using Shell commands.
 
 ## Usage 
 
@@ -110,8 +107,8 @@ This file is used so the `Snakefile` does not need to be changed when locations 
 ### :round_pushpin: conda
 Using the conda package manager, you need to create an environment where core softwares such as `Snakemake` will be installed.   
 1. Install the [Miniconda3 distribution (>= Python 3.7 version)](https://docs.conda.io/en/latest/miniconda.html) for your OS (Windows, Linux or Mac OS X).  
-2. Inside a Shell window (command line interface), create a virtual environment named `rnaseq` using the `envs/environment.yaml` file with the following command: `conda env create --name rnaseq --file envs/environment.yaml`
-3. Then, before you run the Snakemake pipeline, activate this virtual environment with `source activate rnaseq`.
+2. Inside a Shell window (command line interface), create a virtual environment named `gbs` using the `environment.yaml` file with the following command: `conda install -c conda-forge mamba --yes && mamba env create --file environment.yaml`. The `mamba` package manager is faster than conda. 
+3. Then, before you run the Snakemake pipeline, activate this virtual environment with `conda activate gbs`.
 
 ## Dry run
 - Use the `snakemake -np` to perform a dry run that prints out the rules and commands.
@@ -123,9 +120,9 @@ With conda: `snakemake --cores 10`
 # Installation and usage (HPC cluster)
 
 ## Installation
-You will need a local copy of the GitHub `genotype_from_rnaseq` repository on your machine. On a HPC system, you will have to clone it using the Shell command-line: `git clone git@github.com:BleekerLab/genotype_from_rnaseq.git`.
-- click on ["Clone or download"](https://github.com/BleekerLab/genotype_from_rnaseq/archive/master.zip) and select `download`. 
-- Then navigate inside the `genotype_from_rnaseq` folder using Shell commands.
+You will need a local copy of the GitHub `genotype_by_sequencing` repository on your machine. On a HPC system, you will have to clone it using the Shell command-line: `git clone git@github.com:BleekerLab/genotype_by_sequencing.git`.
+- click on ["Clone or download"](https://github.com/BleekerLab/genotype_by_sequencing/archive/master.zip) and select `download`. 
+- Then navigate inside the `genotype_by_sequencing` folder using Shell commands.
 
 ## SLURM sbatch usage
 See the detailed protocol [here](./hpc/README.md). 
@@ -136,10 +133,8 @@ This will submit the batch script to SLURM sbatch.
 ```bash
 #!/bin/bash
 #
-#SBATCH --job-name=snakemake_rnaseq     # job name
+#SBATCH --job-name=snakemake_gbs        # job name
 #SBATCH  --time=24:00:00                # mail events (NONE, BEGIN, END, FAIL, ALL)
-#SBATCH --mail-type=END,FAIL            # When to send emails
-#SBATCH --mail-user=m.galland@uva.nl    # email address
 #SBATCH --mem-per-cpu=8G                # RAM requested per job (in Snakemake, one rule = one job)
 #SBATCH --output=parallel_%j.log        # standard output and error log (%j substitutes the JOB ID)
 
@@ -157,7 +152,7 @@ srun snakemake -j $SLURM_CPUS_PER_TASK
 To start an interactive session, do: 
 
 - Step1: `srun --time=24:00:00 --mem-per-cpu=8G --cpus-per-task=10 --pty bash -i`    
-- Step2: `conda activate rnaseq`    
+- Step2: `conda activate gbs`    
 - Step3: `snakemake -j 10` (since we specified 10 cpus per task)    
 - Step4: `exit`  
 
@@ -166,7 +161,7 @@ This starts an interactive bash with 10 CPUs allocated per task and 8G of RAM pe
 ## Retrieving your results
 
 For instance, download the results but exclude bam files (too big).   
-`rsync -a -v -e ssh --exclude="*bam"  mgallan1@omics-h0.science.uva.nl:/zfs/omics/personal/mgallan1/workspace/genotype_from_rnaseq/results/ [local directory]`
+`rsync -a -v -e ssh --exclude="*bam"  mgallan1@omics-h0.science.uva.nl:/zfs/omics/personal/mgallan1/workspace/genotype_by_sequencing/results/ [local directory]`
 
 ## Useful links
 - [Snakemake with SLURM](https://accio.github.io/programming/2020/06/16/Snakemake-with-slurm.html)
@@ -198,4 +193,4 @@ For instance, download the results but exclude bam files (too big).
 # Citation
 If you use this software, please use the following citation:  
 
-Bliek T. and Galland M. (2021). Calling genotype from RNA-seq pipeline (version 0.1.0). 
+Bliek T. and Galland M. (2021). Genotyping by sequencing pipeline (version 0.1.0). 
