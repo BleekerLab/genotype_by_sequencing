@@ -1,6 +1,6 @@
-#########################################
-# Snakemake pipeline for RNA-Seq analysis
-#########################################
+#################################################
+# Snakemake pipeline for genotyping by sequencing 
+#################################################
 
 
 ###########
@@ -20,13 +20,9 @@ RESULT_DIR = config["result_dir"]
 # Samples and conditions
 ########################
 
-# read the tabulated separated table containing the sample, condition and fastq file information∂DE
-units = pd.read_table(config["units"], dtype=str).set_index(["sample"], drop=False)
-
 # create lists containing the sample names and conditions
-SAMPLES = units.index.get_level_values('sample').unique().tolist()
-samples = pd.read_csv(config["units"], dtype=str,index_col=0,sep="\t")
-samplefile = config["units"]
+samples = pd.read_csv(config["samples"], dtype=str,index_col=0,sep="\t")
+SAMPLES = samples.index.get_level_values('sample').unique().tolist()
 
 
 ###########################
@@ -34,7 +30,7 @@ samplefile = config["units"]
 ###########################
 
 def sample_is_single_end(sample):
-    """This function detect missing value in the column 2 of the units.tsv"""
+    """This function detect missing value in the column 2 of the samples.tsv"""
     if "fq2" not in samples.columns:
         return True
     else:
@@ -103,33 +99,47 @@ rule all:
 # Genome reference indexing
 ###########################
 
-rule star_index:
-    input:
-        fasta = config["refs"]["genome"],
-        gtf =   config["refs"]["gtf"]
-    output:
-         genome_index = [WORKING_DIR + "genome/" + f for f in ["chrLength.txt","chrNameLength.txt","chrName.txt","chrStart.txt","Genome","genomeParameters.txt","SA","SAindex"]]
-    message:
-        "generating STAR genome index"
-    params:
-        genome_dir = WORKING_DIR + "genome/",
-        sjdb_overhang = config["star_index"]["sjdbOverhang"],
-        limit_genome_generate_ram = config["star_index"]["limitGenomeGenerateRAM"],
-        genome_sa = config["star_index"]["genomeSAindexNbases"],
-        genome_chr_bin_n_bits = config["star_index"]["genomeChrBinNbits"]
-    threads: 10
-    resources: mem_mb=100000
-    shell:
-        "mkdir -p {params.genome_dir}; " # if directory not created STAR will ask for it
-        "STAR --runThreadN {threads} "
-        "--runMode genomeGenerate "
-        "--genomeDir {params.genome_dir} "
-        "--genomeFastaFiles {input.fasta} "
-        "--sjdbGTFfile {input.gtf} "
-        "--sjdbOverhang {params.sjdb_overhang} "
-        "--limitGenomeGenerateRAM {params.limit_genome_generate_ram} "
-        "--genomeSAindexNbases {params.genome_sa} "
-        "--genomeChrBinNbits {params.genome_chr_bin_n_bits}"
+if config["datatype"] == "RNA":
+    rule star_index:
+        input:
+            fasta = config["refs"]["genome"],
+            gtf =   config["refs"]["gtf"]
+        output:
+            genome_index = [WORKING_DIR + "genome/" + f for f in ["chrLength.txt","chrNameLength.txt","chrName.txt","chrStart.txt","Genome","genomeParameters.txt","SA","SAindex"]]
+        message:
+            "generating STAR genome index"
+        params:
+            genome_dir = WORKING_DIR + "genome/",
+            sjdb_overhang = config["star_index"]["sjdbOverhang"],
+            limit_genome_generate_ram = config["star_index"]["limitGenomeGenerateRAM"],
+            genome_sa = config["star_index"]["genomeSAindexNbases"],
+            genome_chr_bin_n_bits = config["star_index"]["genomeChrBinNbits"]
+        threads: 10
+        resources: mem_mb=100000
+        shell:
+            "mkdir -p {params.genome_dir}; " # if directory not created STAR will ask for it
+            "STAR --runThreadN {threads} "
+            "--runMode genomeGenerate "
+            "--genomeDir {params.genome_dir} "
+            "--genomeFastaFiles {input.fasta} "
+            "--sjdbGTFfile {input.gtf} "
+            "--sjdbOverhang {params.sjdb_overhang} "
+            "--limitGenomeGenerateRAM {params.limit_genome_generate_ram} "
+            "--genomeSAindexNbases {params.genome_sa} "
+            "--genomeChrBinNbits {params.genome_chr_bin_n_bits}"
+elif config["datatype"] == "DNA":
+    rule bwa_index:
+        input:
+            fasta = config["refs"]["genome"]
+        output: 
+            genome_index = [WORKING_DIR + "genome/genome" + ext for ext in [".sa", ".pac", ".bwt", ".ann", ".amb"] ]
+        message:
+            "Generating BWA genome index"
+        shell:
+            "bwa index -p genome/genome {input.fasta}"
+else:
+    raise ValueError('Please specify either "DNA" or "RNA" as "datatype" in the config.yaml file.')
+
 
 #######################
 # RNA-seq read trimming
@@ -173,54 +183,71 @@ rule multiqc:
         "--outdir {params.outdir} "
         "{params.fastp_directory} "
 
-#########################
-# RNA-Seq read alignement
-#########################
+####################################
+# DNA-seq or RNA-Seq read alignement
+####################################
 
-rule map_to_genome_using_STAR:
-    input:
-        genome_index = rules.star_index.output,
-        forward_read = WORKING_DIR + "trimmed/" + "{sample}_R1_trimmed.fq.gz",
-        reverse_read = WORKING_DIR + "trimmed/" + "{sample}_R2_trimmed.fq.gz"
-    output:
-        RESULT_DIR + "star/{sample}_Aligned.sortedByCoord.out.bam",
-        RESULT_DIR + "star/{sample}_Log.final.out"
-    message:
-        "mapping {wildcards.sample} reads to genome"
-    params:
-        sample_name           =  "{sample}",
-        star_input_file_names =  get_star_names,
-        prefix                =  RESULT_DIR + "star/{sample}_",
-        maxmismatches         =  config["star"]["mismatches"],
-        unmapped              =  config["star"]["unmapped"]   ,
-        multimappers          =  config["star"]["multimappers"],
-        matchNminoverLread    =  config["star"]["matchminoverlengthread"],
-        outSamType            =  config["star"]["samtype"],
-        outSAMattributes      =  config["star"]["samattributes"],
-        intronmax             =  config["star"]["intronmax"],
-        matesgap              =  config["star"]["matesgap"],
-        genome_index          =  WORKING_DIR + "genome/"
-    threads: 10
-    resources: cpus=10
-    shell:
-        "STAR --genomeDir {params.genome_index} --readFilesIn {params.star_input_file_names} --readFilesCommand zcat --outFilterMultimapNmax {params.multimappers} \
-        --outFilterMismatchNmax {params.maxmismatches} --alignMatesGapMax {params.matesgap} --alignIntronMax {params.intronmax}  \
-        --outFilterMatchNminOverLread  {params.matchNminoverLread} --alignEndsType EndToEnd --runThreadN {threads}  --outReadsUnmapped {params.unmapped} \
-        --outFileNamePrefix {params.prefix} --outSAMtype {params.outSamType}  --outSAMattributes {params.outSAMattributes}"
-
-
-rule generate_mapping_summary:
-    input:
-        expand(RESULT_DIR + "star/{sample}_Log.final.out", sample = SAMPLES)
-    output:
-        RESULT_DIR + "mapping_summary.csv"
-    message:
-        "Concatenating STAR mapping report and generating .csv mapping summary."
-    params:
-        directory_with_mapping_reports = RESULT_DIR + "star/",
-        config_file_path = "config/config.yaml"
-    shell:
-        "python scripts/generate_mapping_summary.py {params.directory_with_mapping_reports} {params.config_file_path} {output}"
+if config["datatype"] == "RNA":
+    rule map_to_genome_using_STAR:
+        input:
+            genome_index = rules.star_index.output,
+            forward_read = WORKING_DIR + "trimmed/" + "{sample}_R1_trimmed.fq.gz",
+            reverse_read = WORKING_DIR + "trimmed/" + "{sample}_R2_trimmed.fq.gz"
+        output:
+            RESULT_DIR + "star/{sample}_Aligned.sortedByCoord.out.bam",
+            RESULT_DIR + "star/{sample}_Log.final.out"
+        message:
+            "mapping {wildcards.sample} RNA-seq reads to genome"
+        params:
+            sample_name           =  "{sample}",
+            star_input_file_names =  get_star_names,
+            prefix                =  RESULT_DIR + "star/{sample}_",
+            maxmismatches         =  config["star"]["mismatches"],
+            unmapped              =  config["star"]["unmapped"]   ,
+            multimappers          =  config["star"]["multimappers"],
+            matchNminoverLread    =  config["star"]["matchminoverlengthread"],
+            outSamType            =  config["star"]["samtype"],
+            outSAMattributes      =  config["star"]["samattributes"],
+            intronmax             =  config["star"]["intronmax"],
+            matesgap              =  config["star"]["matesgap"],
+            genome_index          =  WORKING_DIR + "genome/"
+        threads: 10
+        shell:
+            """
+            STAR --genomeDir {params.genome_index} --readFilesIn {params.star_input_file_names} --readFilesCommand zcat --outFilterMultimapNmax {params.multimappers} \
+            --outFilterMismatchNmax {params.maxmismatches} --alignMatesGapMax {params.matesgap} --alignIntronMax {params.intronmax}  \
+            --outFilterMatchNminOverLread  {params.matchNminoverLread} --alignEndsType EndToEnd --runThreadN {threads}  --outReadsUnmapped {params.unmapped} \
+            --outFileNamePrefix {params.prefix} --outSAMtype {params.outSamType}  --outSAMattributes {params.outSAMattributes}
+            """
+elif config["datatype"] == "DNA":
+    rule map_to_genome_using_bwa:
+        input:
+            genome_index = rules.bwa_index.output,
+            forward_read = WORKING_DIR + "trimmed/" + "{sample}_R1_trimmed.fq.gz",
+            reverse_read = WORKING_DIR + "trimmed/" + "{sample}_R2_trimmed.fq.gz"
+        output:
+            WORKING_DIR + "bwa/{sample}_aligned.sorted.bam"
+        message: 
+            "Mapping {wildcards.sample} DNA-seq reads to genome"
+        threads: 10
+        params:
+           genome_index = WORKING_DIR + "genome/genome"
+        shell:
+            "bwa mem -t {threads} {input.genome_index} {input.forward_read} {input.reverse_read} | samtools sort -@ {threads} -o {output} - "
+          
+if config["datatype"] == "RNA":
+    rule generate_mapping_summary:
+        input:
+            expand(RESULT_DIR + "star/{sample}_Log.final.out", sample = SAMPLES)
+        output:
+            RESULT_DIR + "mapping_summary.csv"
+        message:
+            "Concatenating STAR mapping report and generating .csv mapping summary."
+        params:
+            directory_with_mapping_reports = RESULT_DIR + "star/",
+            config_file_path = "config/config.yaml"
+        shell:
+            "python scripts/generate_mapping_summary.py {params.directory_with_mapping_reports} {params.config_file_path} {output}"
 
 
 ########################
