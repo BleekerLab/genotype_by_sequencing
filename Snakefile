@@ -360,7 +360,7 @@ rule compute_chromosome_sizes:
     params: 
         chromsizes_file_name = WORKING_DIR + "genome/genome.fai"
     shell:
-        "samtools faidx {input.fasta} --output {output}"
+        "samtools faidx {input.fasta} ; cut -f1,2 {params.chromsizes_file_name} > {output}" 
 
 rule parse_chromosome_sizes:
     input: 
