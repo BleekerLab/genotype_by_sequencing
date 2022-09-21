@@ -2,9 +2,11 @@
 # directories
 result_dir:  results/ # should be kept
 working_dir: temp/    # can be removed (temporary files)
+keep_working_dir: True # True or False. If False, temporary directory will be removed. 
 
 # samples to condition
-units: config/samples.tsv
+samples: config/samples.tsv
+datatype: "DNA" # accepted values are 'RNA' or 'DNA'
 
 # refs 
 refs:

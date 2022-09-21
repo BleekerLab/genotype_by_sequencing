@@ -41,8 +41,7 @@ Issues](https://img.shields.io/github/issues/bleekerlab/snakemake_rnaseq.svg)](h
 A Snakemake pipeline that calls SNPs (Single Nucleotide Polymorphisms) from either DNA-seq or mRNA-seq data. It trims and aligns DNA/mRNA-seq fastq to a reference genome, then call SNPs before computing the number of SNPs per genomic window (e.g. per 1Mb). 
 This pipeline can process single or paired-end data and is mostly suited for Illumina sequencing data. 
 
-## Description
-This pipeline analyses the raw RNA-seq data and produces two files containing the raw and normalized counts. 
+## Steps
 
 1. The raw fastq files will be trimmed for adaptors and quality checked with `fastp`.  
 2. The genome sequence FASTA file will be used for the mapping step of the trimmed reads using either `bwa` or `STAR`. 
@@ -54,7 +53,7 @@ This pipeline analyses the raw RNA-seq data and produces two files containing th
 
 
 ## Input files
-* __DNA or RNA-seq fastq files__ as listed in the `config/samples.tsv` file. Specify a sample name (e.g. "Sample_A") in the `sample` column, a data type (`DNA` or `RNA`) and the paths to the forward read (`fq1`) and to the reverse read (`fq2`). If you have single-end reads, leave the `fq2` column empty. 
+* __DNA or RNA-seq fastq files__ as listed in the `config/samples.tsv` file. Specify a sample name (e.g. "Sample_A") in the `sample` column and the paths to the forward read (`fq1`) and to the reverse read (`fq2`). If you have single-end reads, leave the `fq2` column empty. 
 * __A genomic reference in FASTA format__. For instance, a fasta file containing the 12 chromosomes of tomato (*Solanum lycopersicum*).
 * __(for RNA-seq datasets) A genome annotation file in the [GTF format](https://useast.ensembl.org/info/website/upload/gff.html)__. You can convert a GFF annotation file format into GTF with the [gffread program from Cufflinks](http://ccb.jhu.edu/software/stringtie/gff.shtml): `gffread my.gff3 -T -o my.gtf`. :warning: for featureCounts to work, the _feature_ in the GTF file should be `exon` while the _meta-feature_ has to be `transcript_id`. This will be converted to a BED file to compute the number of genes per genomic bin. 
 
@@ -101,7 +100,11 @@ You will need a local copy of the GitHub `genotype_by_sequencing` repository on 
 ## Usage 
 
 ## Configuration :pencil2:
-You'll need to change a few things to accomodate this pipeline to your needs. Make sure you have changed the parameters in the `config/config.yaml` file that specifies where to find the sample data file, the genomic and transcriptomic reference fasta files to use and the parameters for certains rules etc.    
+You'll need to change a few things to accomodate this pipeline to your needs. 
+
+1. Make sure you have changed the parameters in the `config/config.yaml` file that specifies where to find the sample data file, the genomic and transcriptomic reference fasta files to use and the parameters for certains rules etc. __in particular, indicate whether your data are DNA-seq or RNA-seq data__  
+The type of input data has to be either `DNA` or `RNA` in the `datatype` section of the `config.yaml`. 
+
 This file is used so the `Snakefile` does not need to be changed when locations or parameters need to be changed.
 
 ### :round_pushpin: conda
@@ -125,6 +128,7 @@ You will need a local copy of the GitHub `genotype_by_sequencing` repository on 
 - Then navigate inside the `genotype_by_sequencing` folder using Shell commands.
 
 ## SLURM sbatch usage
+
 See the detailed protocol [here](./hpc/README.md). 
 
 Here is an example script to be saved as `my_run.sh` and executed with SLURM as `sbatch my_run.sh`  

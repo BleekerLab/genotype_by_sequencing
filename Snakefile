@@ -7,6 +7,7 @@
 # Libraries
 ###########
 import pandas as pd
+import subprocess
 
 ###############
 # Configuration
@@ -71,24 +72,32 @@ def get_star_names(wildcards):
 # Desired outputs
 #################
 MULTIQC = RESULT_DIR + "multiqc_report.html"
-BAM_FILES = expand(RESULT_DIR + "star/{sample}_Aligned.sortedByCoord.out.bam", sample = SAMPLES)
 MAPPING_REPORT = RESULT_DIR + "mapping_summary.csv"
-
-VCF = expand(WORKING_DIR + "vcf/{sample}.vcf", sample = SAMPLES)
 SNP_COUNTS = expand(RESULT_DIR + "{sample}.counts.tsv", sample = SAMPLES)
 
-rule all:
-    input:
-        MULTIQC,
-        BAM_FILES, 
-        MAPPING_REPORT,
-        SNP_COUNTS   
-    message:
-        "RNA-seq pipeline run complete!"
-    shell:
-        "cp config/config.yaml {RESULT_DIR};"
-        "cp config/samples.tsv {RESULT_DIR};"
-        "rm -r {WORKING_DIR}"
+if config["keep_working_dir"] == True:
+    rule all:
+        input:
+            MULTIQC,
+            MAPPING_REPORT,
+            SNP_COUNTS   
+        message:
+            "Genotyping by sequencing pipeline run complete!"
+        shell:
+            "cp config/config.yaml {RESULT_DIR};"
+            "cp config/samples.tsv {RESULT_DIR};"
+else:
+    rule all:
+        input:
+            MULTIQC,
+            MAPPING_REPORT,
+            SNP_COUNTS   
+        message:
+            "Genotyping by sequencing pipeline run complete!"
+        shell:
+            "cp config/config.yaml {RESULT_DIR};"
+            "cp config/samples.tsv {RESULT_DIR};"
+            "rm -r {WORKING_DIR}"
 
 #######
 # Rules
@@ -194,14 +203,14 @@ if config["datatype"] == "RNA":
             forward_read = WORKING_DIR + "trimmed/" + "{sample}_R1_trimmed.fq.gz",
             reverse_read = WORKING_DIR + "trimmed/" + "{sample}_R2_trimmed.fq.gz"
         output:
-            RESULT_DIR + "star/{sample}_Aligned.sortedByCoord.out.bam",
-            RESULT_DIR + "star/{sample}_Log.final.out"
+            WORKING_DIR + "star/{sample}_Aligned.sortedByCoord.out.bam",
+            WORKING_DIR + "star/{sample}_Log.final.out"
         message:
             "mapping {wildcards.sample} RNA-seq reads to genome"
         params:
             sample_name           =  "{sample}",
             star_input_file_names =  get_star_names,
-            prefix                =  RESULT_DIR + "star/{sample}_",
+            prefix                =  WORKING_DIR + "star/{sample}_",
             maxmismatches         =  config["star"]["mismatches"],
             unmapped              =  config["star"]["unmapped"]   ,
             multimappers          =  config["star"]["multimappers"],
@@ -238,44 +247,81 @@ elif config["datatype"] == "DNA":
 if config["datatype"] == "RNA":
     rule generate_mapping_summary:
         input:
-            expand(RESULT_DIR + "star/{sample}_Log.final.out", sample = SAMPLES)
+            expand(WORKING_DIR + "star/{sample}_Log.final.out", sample = SAMPLES)
         output:
             RESULT_DIR + "mapping_summary.csv"
         message:
-            "Concatenating STAR mapping report and generating .csv mapping summary."
+            "Concatenating STAR mapping report from RNA-seq data and generating .csv mapping summary."
         params:
-            directory_with_mapping_reports = RESULT_DIR + "star/",
+            directory_with_mapping_reports = WORKING_DIR + "star/",
             config_file_path = "config/config.yaml"
         shell:
             "python scripts/generate_mapping_summary.py {params.directory_with_mapping_reports} {params.config_file_path} {output}"
+elif config["datatype"] == "DNA":
+    rule generate_mapping_summary:
+        input:
+            expand(WORKING_DIR + "bwa/{sample}_aligned.sorted.bam", sample = SAMPLES)
+        output: 
+            RESULT_DIR + "mapping_summary.csv"
+        message:
+            "Creating BWA mapping report from DNA-seq data and generate .csv mapping summary"
+        params: 
+            directory_with_bam_files = WORKING_DIR + "bwa/"
+        shell:
+            "touch {output}"
 
 
 ########################
 # SNP calling per sample
 ########################
 
-rule call_snps:
-    input:
-        bam = RESULT_DIR + "star/{sample}_Aligned.sortedByCoord.out.bam",
-        fasta = config["refs"]["genome"],
-    output:
-        WORKING_DIR + "vcf/{sample}.vcf"
-    message:
-        "Calling SNPs using bcftools from {wildcards.sample} mapping"
-    params: 
-        max_depth = config["bcftools"]["max_depth"],
-        min_base_quality = config["bcftools"]["min_base_quality"]
-    threads: 10
-    shell:
-        "bcftools mpileup --threads {threads} "
-        "--max-depth {params.max_depth} "
-        "--no-BAQ " # Disable probabilistic realignment for the computation of base alignment quality (BAQ). BAQ is the Phred-scaled probability of a read base being misaligned. Applying this option greatly helps to reduce false SNPs caused by misalignments.
-        "--min-BQ {params.min_base_quality} "
-        "--per-sample-mF "
-        "-f {input.fasta} "
-        "--skip-indels "
-        "--output-type v {input.bam} | "
-        "bcftools call --multiallelic-caller --variants-only -Ov - > {output}" 
+if config["datatype"] == "RNA":
+    rule call_snps:
+        input:
+            bam = WORKING_DIR + "star/{sample}_Aligned.sortedByCoord.out.bam",
+            fasta = config["refs"]["genome"],
+        output:
+            WORKING_DIR + "vcf/{sample}.vcf"
+        message:
+            "Calling SNPs using bcftools from {wildcards.sample} mapping"
+        params: 
+            max_depth = config["bcftools"]["max_depth"],
+            min_base_quality = config["bcftools"]["min_base_quality"]
+        threads: 10
+        shell:
+            "bcftools mpileup --threads {threads} "
+            "--max-depth {params.max_depth} "
+            "--no-BAQ " # Disable probabilistic realignment for the computation of base alignment quality (BAQ). BAQ is the Phred-scaled probability of a read base being misaligned. Applying this option greatly helps to reduce false SNPs caused by misalignments.
+            "--min-BQ {params.min_base_quality} "
+            "--per-sample-mF "
+            "-f {input.fasta} "
+            "--skip-indels "
+            "--output-type v {input.bam} | "
+            "bcftools call --multiallelic-caller --variants-only -Ov - > {output}" 
+
+if config["datatype"] == "DNA":
+    rule call_snps:
+        input:
+            bam = WORKING_DIR + "bwa/{sample}_aligned.sorted.bam",
+            fasta = config["refs"]["genome"],
+        output:
+            WORKING_DIR + "vcf/{sample}.vcf"
+        message:
+            "Calling SNPs using bcftools from {wildcards.sample} mapping"
+        params: 
+            max_depth = config["bcftools"]["max_depth"],
+            min_base_quality = config["bcftools"]["min_base_quality"]
+        threads: 10
+        shell:
+            "bcftools mpileup --threads {threads} "
+            "--max-depth {params.max_depth} "
+            "--no-BAQ " # Disable probabilistic realignment for the computation of base alignment quality (BAQ). BAQ is the Phred-scaled probability of a read base being misaligned. Applying this option greatly helps to reduce false SNPs caused by misalignments.
+            "--min-BQ {params.min_base_quality} "
+            "--per-sample-mF "
+            "-f {input.fasta} "
+            "--skip-indels "
+            "--output-type v {input.bam} | "
+            "bcftools call --multiallelic-caller --variants-only -Ov - > {output}" 
 
 rule filter_snps:
     input:
