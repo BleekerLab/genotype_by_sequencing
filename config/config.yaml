@@ -49,10 +49,9 @@ star:
 
 bcftools:
   max_depth: 10000          # At a position, read maximally INT reads per input file.
-  min_base_quality: 30      # Minimum base quality for a base to be considered. 
-
-varfilter:
-  min_read_depth: 10
+  snp_quality: 20           # To perform bcftools view -j QUAL>XX filtering
+  read_depth: 10            # To perform bcftools view -i DP>XX filtering. 
+  min_base_quality: 30      # Min base quiality for a base to be considered. 
 
 bedtools:
   window_size: 1000 # 1Mb = 1,000,000

@@ -342,7 +342,7 @@ rule filter_snps_based_on_quality:
         "--output-type v "
         "--output {output} "
         "--threads {threads} "
-        "--include MIN(FMT/DP)>{params.read_depth} && MIN(QUAL)>{snp_quality} "
+        "--include MIN(FMT/DP)>{params.read_depth} && MIN(QUAL)>{params.snp_quality} "
         "{input}"
 
 
@@ -354,10 +354,11 @@ rule keep_only_homozygous_alt_genotypes:
     message:
         "Keeping homozygous ALT-ALT homozygous genotypes from {wildcards.sample} VCF file"
     threads: 10
+    params:
+        bcftools_filter_expr = "GT='AA'"
     shell:
-        """
-        bcftools view --output-type v -o {output} --include "GT='AA' {input} 
-        """"
+        "bcftools view --output-type v -o {output} "
+        "--include {params.bcftools_filter_expr} {input}"
 
 rule convert_vcf_to_bed:
     input:
