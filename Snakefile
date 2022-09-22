@@ -52,10 +52,10 @@ def get_trim_names(wildcards):
     """
     if sample_is_single_end(wildcards.sample):
         inFile = samples.loc[(wildcards.sample), ["fq1"]].dropna()
-        return "--in1 " + inFile[0] + " --out1 " + WORKING_DIR + "trimmed/" + wildcards.sample + "_R1_trimmed.fq.gz" 
+        return "--in1 " + inFile[0] + " --out1 " + WORKING_DIR + "trimmed/" + wildcards.sample + "_R1_trimmed.fq" 
     else:
         inFile = samples.loc[(wildcards.sample), ["fq1", "fq2"]].dropna()
-        return "--in1 " + inFile[0] + " --in2 " + inFile[1] + " --out1 " + WORKING_DIR + "trimmed/" + wildcards.sample + "_R1_trimmed.fq.gz --out2 "  + WORKING_DIR + "trimmed/" + wildcards.sample + "_R2_trimmed.fq.gz"
+        return "--in1 " + inFile[0] + " --in2 " + inFile[1] + " --out1 " + WORKING_DIR + "trimmed/" + wildcards.sample + "_R1_trimmed.fq --out2 "  + WORKING_DIR + "trimmed/" + wildcards.sample + "_R2_trimmed.fq"
 
 def get_star_names(wildcards):
     """
@@ -144,8 +144,11 @@ elif config["datatype"] == "DNA":
             genome_index = [WORKING_DIR + "genome/genome" + ext for ext in [".sa", ".pac", ".bwt", ".ann", ".amb"] ]
         message:
             "Generating BWA genome index"
+        params:
+            genome_dir = WORKING_DIR + "genome/"
         shell:
-            "bwa index -p genome/genome {input.fasta}"
+            "bwa index -p genome {input.fasta};"
+            "mv genome.amb genome.ann genome.bwt genome.pac genome.sa {params.genome_dir}"
 else:
     raise ValueError('Please specify either "DNA" or "RNA" as "datatype" in the config.yaml file.')
 
@@ -158,8 +161,8 @@ rule fastp:
     input:
         get_fastq
     output:
-        fq1  = temp(WORKING_DIR + "trimmed/" + "{sample}_R1_trimmed.fq.gz"),
-        fq2  = temp(WORKING_DIR + "trimmed/" + "{sample}_R2_trimmed.fq.gz"),
+        fq1  = temp(WORKING_DIR + "trimmed/" + "{sample}_R1_trimmed.fq"),
+        fq2  = temp(WORKING_DIR + "trimmed/" + "{sample}_R2_trimmed.fq"),
         html = WORKING_DIR + "fastp/{sample}_fastp.html",
         json = WORKING_DIR + "fastp/{sample}_fastp.json"
     message:"trimming {wildcards.sample} reads"
@@ -200,8 +203,8 @@ if config["datatype"] == "RNA":
     rule map_to_genome_using_STAR:
         input:
             genome_index = rules.star_index.output,
-            forward_read = WORKING_DIR + "trimmed/" + "{sample}_R1_trimmed.fq.gz",
-            reverse_read = WORKING_DIR + "trimmed/" + "{sample}_R2_trimmed.fq.gz"
+            forward_read = WORKING_DIR + "trimmed/" + "{sample}_R1_trimmed.fq",
+            reverse_read = WORKING_DIR + "trimmed/" + "{sample}_R2_trimmed.fq"
         output:
             WORKING_DIR + "star/{sample}_Aligned.sortedByCoord.out.bam",
             WORKING_DIR + "star/{sample}_Log.final.out"
@@ -232,8 +235,8 @@ elif config["datatype"] == "DNA":
     rule map_to_genome_using_bwa:
         input:
             genome_index = rules.bwa_index.output,
-            forward_read = WORKING_DIR + "trimmed/" + "{sample}_R1_trimmed.fq.gz",
-            reverse_read = WORKING_DIR + "trimmed/" + "{sample}_R2_trimmed.fq.gz"
+            forward_read = WORKING_DIR + "trimmed/" + "{sample}_R1_trimmed.fq",
+            reverse_read = WORKING_DIR + "trimmed/" + "{sample}_R2_trimmed.fq"
         output:
             WORKING_DIR + "bwa/{sample}_aligned.sorted.bam"
         message: 
@@ -242,7 +245,7 @@ elif config["datatype"] == "DNA":
         params:
            genome_index = WORKING_DIR + "genome/genome"
         shell:
-            "bwa mem -t {threads} {input.genome_index} {input.forward_read} {input.reverse_read} | samtools sort -@ {threads} -o {output} - "
+            "bwa mem -v 0 -t {threads} {params.genome_index} {input.forward_read} {input.reverse_read} | samtools sort -@ {threads} -o {output} - "
           
 if config["datatype"] == "RNA":
     rule generate_mapping_summary:
