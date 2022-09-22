@@ -326,23 +326,44 @@ if config["datatype"] == "DNA":
             "--output-type v {input.bam} | "
             "bcftools call --multiallelic-caller --variants-only -Ov - > {output}" 
 
-rule filter_snps:
-    input:
+rule filter_snps_based_on_quality:
+    input: 
         WORKING_DIR + "vcf/{sample}.vcf"
     output:
-        WORKING_DIR + "vcf/{sample}.filtered.vcf"
+        WORKING_DIR + "vcf/{sample}.qual.vcf"
     message:
-        "Filtering SNP calls"
+        "Filtering {wildcards.sample} SNPs based on quality"
     params:
-        min_read_depth = config["varfilter"]["min_read_depth"]
+        snp_quality = config["bcftools"]["snp_quality"],
+        read_depth = config["bcftools"]["read_depth"]
+    threads: 10
     shell:
-        "vcfutils.pl varFilter -d {params.min_read_depth} {input}  > {output}"
+        "bcftools view "
+        "--output-type v "
+        "--output {output} "
+        "--threads {threads} "
+        "--include MIN(FMT/DP)>{params.read_depth} && MIN(QUAL)>{snp_quality} "
+        "{input}"
+
+
+rule keep_only_homozygous_alt_genotypes:
+    input:
+        WORKING_DIR + "vcf/{sample}.qual.vcf"
+    output:
+        WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
+    message:
+        "Keeping homozygous ALT-ALT homozygous genotypes from {wildcards.sample} VCF file"
+    threads: 10
+    shell:
+        """
+        bcftools view --output-type v -o {output} --include "GT='AA' {input} 
+        """"
 
 rule convert_vcf_to_bed:
     input:
-        WORKING_DIR + "vcf/{sample}.filtered.vcf"
+        WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
     output:
-        WORKING_DIR + "bed/{sample}.filtered.bed"
+        WORKING_DIR + "bed/{sample}.bed"
     message:
         "Convert {wildcards.sample} VCF to BED format"
     shell:
@@ -361,9 +382,9 @@ rule compute_chromosome_sizes:
     message:
         "Compute genome chromosome sizes"
     params: 
-        chromsizes_file_name = WORKING_DIR + "genome/genome.fai"
+        samtools_index_file_name = config["refs"]["genome"] + ".fai"
     shell:
-        "samtools faidx {input.fasta} ; cut -f1,2 {params.chromsizes_file_name} > {output}" 
+        "samtools faidx {input.fasta} ; cut -f1,2 {params.samtools_index_file_name} > {output}" 
 
 rule parse_chromosome_sizes:
     input: 
@@ -393,7 +414,7 @@ rule create_genome_bins:
 
 rule count_nb_snp_per_genome_bin:
     input:
-        sample_bed = WORKING_DIR + "bed/{sample}.filtered.bed",
+        sample_bed = WORKING_DIR + "bed/{sample}.bed",
         genome_bed = WORKING_DIR + "genome/genome.bed"
     output:
         RESULT_DIR + "{sample}.counts.tsv"
