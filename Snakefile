@@ -166,7 +166,7 @@ rule fastp:
         html = WORKING_DIR + "fastp/{sample}_fastp.html",
         json = WORKING_DIR + "fastp/{sample}_fastp.json"
     message:"trimming {wildcards.sample} reads"
-    threads: 10
+    threads: 20
     log:
         RESULT_DIR + "fastp/{sample}.log.txt"
     params:
@@ -223,7 +223,7 @@ if config["datatype"] == "RNA":
             intronmax             =  config["star"]["intronmax"],
             matesgap              =  config["star"]["matesgap"],
             genome_index          =  WORKING_DIR + "genome/"
-        threads: 10
+        threads: 20
         shell:
             """
             STAR --genomeDir {params.genome_index} --readFilesIn {params.star_input_file_names} --readFilesCommand zcat --outFilterMultimapNmax {params.multimappers} \
@@ -241,7 +241,7 @@ elif config["datatype"] == "DNA":
             WORKING_DIR + "bwa/{sample}_aligned.sorted.bam"
         message: 
             "Mapping {wildcards.sample} DNA-seq reads to genome"
-        threads: 10
+        threads: 20
         params:
            genome_index = WORKING_DIR + "genome/genome"
         shell:
@@ -290,7 +290,7 @@ if config["datatype"] == "RNA":
         params: 
             max_depth = config["bcftools"]["max_depth"],
             min_base_quality = config["bcftools"]["min_base_quality"]
-        threads: 10
+        threads: 20
         shell:
             "bcftools mpileup --threads {threads} "
             "--max-depth {params.max_depth} "
@@ -314,7 +314,7 @@ if config["datatype"] == "DNA":
         params: 
             max_depth = config["bcftools"]["max_depth"],
             min_base_quality = config["bcftools"]["min_base_quality"]
-        threads: 10
+        threads: 20
         shell:
             "bcftools mpileup --threads {threads} "
             "--max-depth {params.max_depth} "
@@ -336,7 +336,7 @@ rule filter_snps_based_on_quality:
     params:
         snp_quality = config["bcftools"]["snp_quality"],
         read_depth = config["bcftools"]["read_depth"]
-    threads: 10
+    threads: 20
     shell:
         "bcftools view "
         "--output-type v "
@@ -353,7 +353,7 @@ rule keep_only_homozygous_alt_genotypes:
         WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
     message:
         "Keeping homozygous ALT-ALT homozygous genotypes from {wildcards.sample} VCF file"
-    threads: 10
+    threads: 20
     params:
         bcftools_filter_expr = "GT='AA'"
     shell:
