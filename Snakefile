@@ -342,7 +342,7 @@ rule filter_snps_based_on_quality:
         "--output-type v "
         "--output-file {output} "
         "--threads {threads} "
-        "--include 'MIN(FMT/DP)>{params.read_depth} && MIN(QUAL)>{params.snp_quality}' "
+        "--include 'MIN(DP)>{params.read_depth} && MIN(QUAL)>{params.snp_quality}' "
         "{input}"
 
 
