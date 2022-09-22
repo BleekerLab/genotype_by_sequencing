@@ -357,8 +357,11 @@ rule keep_only_homozygous_alt_genotypes:
     params:
         bcftools_filter_expr = "GT='AA'"
     shell:
-        "bcftools view --output-type v -o {output} "
-        "--include {params.bcftools_filter_expr} {input}"
+        """
+        bcftools view --output-type v -o {output} 
+        --include 'GT="AA"'  
+        {input}
+        """
 
 rule convert_vcf_to_bed:
     input:
