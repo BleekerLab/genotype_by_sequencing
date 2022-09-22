@@ -123,7 +123,7 @@ if config["datatype"] == "RNA":
             limit_genome_generate_ram = config["star_index"]["limitGenomeGenerateRAM"],
             genome_sa = config["star_index"]["genomeSAindexNbases"],
             genome_chr_bin_n_bits = config["star_index"]["genomeChrBinNbits"]
-        threads: 10
+        threads: 20
         resources: mem_mb=100000
         shell:
             "mkdir -p {params.genome_dir}; " # if directory not created STAR will ask for it
@@ -359,7 +359,7 @@ rule keep_only_homozygous_alt_genotypes:
     shell:
         "bcftools view --output-type v "
         "-o {output} "
-        "--include {params.bcftools_filter_expr:q} "
+        "--include {params.bcftools_filter_expr:q} " # robust quoting https://carpentries-incubator.github.io/snakemake-novice-bioinformatics/13-quoting/index.html
         "{input}"
 
 rule convert_vcf_to_bed:
