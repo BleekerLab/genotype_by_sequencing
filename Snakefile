@@ -73,6 +73,7 @@ def get_star_names(wildcards):
 #################
 MULTIQC = RESULT_DIR + "multiqc_report.html"
 MAPPING_REPORT = RESULT_DIR + "mapping_summary.csv"
+VCFs = expand(RESULT_DIR + "vcf/{sample}.qual.alt.vcf", sample = SAMPLES)
 SNP_COUNTS = expand(RESULT_DIR + "{sample}.counts.tsv", sample = SAMPLES)
 
 if config["keep_working_dir"] == True:
@@ -80,6 +81,7 @@ if config["keep_working_dir"] == True:
         input:
             MULTIQC,
             MAPPING_REPORT,
+            VCFs,
             SNP_COUNTS   
         message:
             "Genotyping by sequencing pipeline run complete!"
@@ -91,6 +93,7 @@ else:
         input:
             MULTIQC,
             MAPPING_REPORT,
+            VCFs,
             SNP_COUNTS   
         message:
             "Genotyping by sequencing pipeline run complete!"
@@ -260,19 +263,34 @@ if config["datatype"] == "RNA":
             config_file_path = "config/config.yaml"
         shell:
             "python scripts/generate_mapping_summary.py {params.directory_with_mapping_reports} {params.config_file_path} {output}"
-elif config["datatype"] == "DNA":
-    rule generate_mapping_summary:
+
+if config["datatype"] == "DNA":
+    rule generate_single_mapping_summary:
         input:
-            expand(WORKING_DIR + "bwa/{sample}_aligned.sorted.bam", sample = SAMPLES)
+            WORKING_DIR + "bwa/{sample}_aligned.sorted.bam"
         output: 
+            WORKING_DIR + "bwa/{sample}_single_mapping_summary.txt"
+        message:
+            "Creating BWA mapping report from {wildcards.sample} bam file DNA-seq data and generate .csv mapping summary"
+        threads: 10 
+        shell:
+            "samtools stats {input} | grep ^SN | cut -fcut -f 2- > {output}"
+
+if config["datatype"] == "DNA":
+    rule combine_mapping_summaries:
+        input:
+            expand(WORKING_DIR + "bwa/{sample}_single_mapping_summary.txt", sample = SAMPLES)
+        output:
             RESULT_DIR + "mapping_summary.csv"
         message:
-            "Creating BWA mapping report from DNA-seq data and generate .csv mapping summary"
+            "Generate combined .csv mapping summary for all samples."
         params: 
-            directory_with_bam_files = WORKING_DIR + "bwa/"
+            bam_dir = WORKING_DIR + "bwa/"
         shell:
-            "touch {output}"
-
+            "python scripts/generate_mapping_summary_from_bwa_aligments.py "
+            "-d {params.bam_dir} "
+            "-r {output}"
+        
 
 ########################
 # SNP calling per sample
@@ -350,7 +368,7 @@ rule keep_only_homozygous_alt_genotypes:
     input:
         WORKING_DIR + "vcf/{sample}.qual.vcf"
     output:
-        WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
+        RESULT_DIR + "vcf/{sample}.qual.alt.vcf"
     message:
         "Keeping homozygous ALT-ALT homozygous genotypes from {wildcards.sample} VCF file"
     threads: 20
@@ -364,7 +382,7 @@ rule keep_only_homozygous_alt_genotypes:
 
 rule convert_vcf_to_bed:
     input:
-        WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
+        RESULT_DIR + "vcf/{sample}.qual.alt.vcf"
     output:
         WORKING_DIR + "bed/{sample}.bed"
     message:
