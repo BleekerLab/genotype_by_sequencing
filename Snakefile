@@ -73,7 +73,7 @@ def get_star_names(wildcards):
 #################
 MULTIQC = RESULT_DIR + "multiqc_report.html"
 MAPPING_REPORT = RESULT_DIR + "mapping_summary.csv"
-VCFs = expand(RESULT_DIR + "vcf/{sample}.qual.alt.vcf", sample = SAMPLES)
+VCFs = expand(RESULT_DIR + "vcf/{sample}.qual.alt.vcf.gz", sample = SAMPLES)
 SNP_COUNTS = expand(RESULT_DIR + "{sample}.counts.tsv", sample = SAMPLES)
 
 if config["keep_working_dir"] == True:
@@ -382,13 +382,23 @@ rule keep_only_homozygous_alt_genotypes:
 
 rule convert_vcf_to_bed:
     input:
-        RESULT_DIR + "vcf/{sample}.qual.alt.vcf"
+        WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
     output:
         WORKING_DIR + "bed/{sample}.bed"
     message:
         "Convert {wildcards.sample} VCF to BED format"
     shell:
         "vcf2bed < {input} > {output}"
+
+rule compress_vcf_files:
+    input:
+        WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
+    output:
+        RESULT_DIR + "vcf/{sample}.qual.alt.vcf.gz"
+    message:
+        "Compress {wildcards.sample} VCF file with gzip --best"
+    shell:
+        "gzip --best {input}"
 
 
 ####################
