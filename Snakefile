@@ -3,6 +3,9 @@
 #################################################
 
 
+wildcard_constraints:
+    dataset="[Aa-Zz0-9]+[^.]" # dot is excluded
+
 ###########
 # Libraries
 ###########
@@ -22,7 +25,7 @@ RESULT_DIR = config["result_dir"]
 ########################
 
 # create lists containing the sample names and conditions
-samples = pd.read_csv(config["samples"], dtype=str,index_col=0,sep="\t")
+samples = pd.read_csv(config["samples"], dtype=str, index_col=0, sep="\t")
 SAMPLES = samples.index.get_level_values('sample').unique().tolist()
 
 
@@ -73,7 +76,7 @@ def get_star_names(wildcards):
 #################
 MULTIQC = RESULT_DIR + "multiqc_report.html"
 MAPPING_REPORT = RESULT_DIR + "mapping_summary.csv"
-VCFs = expand(RESULT_DIR + "vcf/{sample}.qual.alt.vcf.gz", sample = SAMPLES)
+#VCFs = expand(RESULT_DIR + "compressed_vcf/{sample}.qual.alt.vcf.gz", sample = SAMPLES)
 SNP_COUNTS = expand(RESULT_DIR + "{sample}.counts.tsv", sample = SAMPLES)
 
 if config["keep_working_dir"] == True:
@@ -81,7 +84,6 @@ if config["keep_working_dir"] == True:
         input:
             MULTIQC,
             MAPPING_REPORT,
-            VCFs,
             SNP_COUNTS   
         message:
             "Genotyping by sequencing pipeline run complete!"
@@ -93,7 +95,6 @@ else:
         input:
             MULTIQC,
             MAPPING_REPORT,
-            VCFs,
             SNP_COUNTS   
         message:
             "Genotyping by sequencing pipeline run complete!"
@@ -368,7 +369,7 @@ rule keep_only_homozygous_alt_genotypes:
     input:
         WORKING_DIR + "vcf/{sample}.qual.vcf"
     output:
-        RESULT_DIR + "vcf/{sample}.qual.alt.vcf"
+        WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
     message:
         "Keeping homozygous ALT-ALT homozygous genotypes from {wildcards.sample} VCF file"
     threads: 20
@@ -387,19 +388,12 @@ rule convert_vcf_to_bed:
         WORKING_DIR + "bed/{sample}.bed"
     message:
         "Convert {wildcards.sample} VCF to BED format"
+    params:
+        vcf_fname = WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
     shell:
-        "vcf2bed < {input} > {output}"
-
-rule compress_vcf_files:
-    input:
-        WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
-    output:
-        RESULT_DIR + "vcf/{sample}.qual.alt.vcf.gz"
-    message:
-        "Compress {wildcards.sample} VCF file with gzip --best"
-    shell:
-        "gzip --best {input}"
-
+        "vcf2bed < {input} > {output};"
+        "gzip --best {params.vcf_fname};"
+        "mv {params.vcf_fname} {RESULT_DIR}"
 
 ####################
 # Create genome bins
