@@ -19,6 +19,12 @@ configfile: "config/config.yaml" # where to find parameters
 WORKING_DIR = config["working_dir"]
 RESULT_DIR = config["result_dir"]
 
+if config["bcftools"]["snp_type_to_keep"] == "GT='hom'":
+    print("Keeping homozygous ALT/ALT SNPs")
+elif config["bcftools"]["snp_type_to_keep"] == "GT='het'":
+    print("Keeping heterozygous REF/ALT SNPs")
+else:
+    raise ValueError("Only GT='hom' and GT='het' values are valid for the 'snp_type_to_keep' field in the config.yaml file.\nMind the quotes.")
 
 ########################
 # Samples and conditions
@@ -27,7 +33,6 @@ RESULT_DIR = config["result_dir"]
 # create lists containing the sample names and conditions
 samples = pd.read_csv(config["samples"], dtype=str, index_col=0, sep="\t")
 SAMPLES = samples.index.get_level_values('sample').unique().tolist()
-
 
 ###########################
 # Input functions for rules
@@ -76,7 +81,6 @@ def get_star_names(wildcards):
 #################
 MULTIQC = RESULT_DIR + "multiqc_report.html"
 MAPPING_REPORT = RESULT_DIR + "mapping_summary.csv"
-#VCFs = expand(RESULT_DIR + "compressed_vcf/{sample}.qual.alt.vcf.gz", sample = SAMPLES)
 SNP_COUNTS = expand(RESULT_DIR + "{sample}.counts.tsv", sample = SAMPLES)
 
 if config["keep_working_dir"] == True:
@@ -365,35 +369,32 @@ rule filter_snps_based_on_quality:
         "{input}"
 
 
-rule keep_only_homozygous_alt_genotypes:
+rule filter_snps_based_on_genotype:
     input:
         WORKING_DIR + "vcf/{sample}.qual.vcf"
     output:
-        WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
+        WORKING_DIR + "vcf/{sample}.qual.snp_type.vcf"
     message:
-        "Keeping homozygous ALT-ALT homozygous genotypes from {wildcards.sample} VCF file"
+        "Keeping genotypes from {wildcards.sample} VCF file"
     threads: 20
     params:
-        bcftools_filter_expr = "GT='AA'"
+        snp_type_to_keep = config["bcftools"]["snp_type_to_keep"]
+        #bcftools_filter_expr = "GT='AA'"
     shell:
         "bcftools view --output-type v "
         "-o {output} "
-        "--include {params.bcftools_filter_expr:q} " # robust quoting https://carpentries-incubator.github.io/snakemake-novice-bioinformatics/13-quoting/index.html
+        "--include {params.snp_type_to_keep:q} " # robust quoting https://carpentries-incubator.github.io/snakemake-novice-bioinformatics/13-quoting/index.html
         "{input}"
 
 rule convert_vcf_to_bed:
     input:
-        WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
+        WORKING_DIR + "vcf/{sample}.qual.snp_type.vcf"
     output:
         WORKING_DIR + "bed/{sample}.bed"
     message:
         "Convert {wildcards.sample} VCF to BED format"
-    params:
-        vcf_fname = WORKING_DIR + "vcf/{sample}.qual.alt.vcf"
     shell:
-        "vcf2bed < {input} > {output};"
-        "gzip --best {params.vcf_fname};"
-        "mv {params.vcf_fname} {RESULT_DIR}"
+        "vcf2bed < {input} > {output}"
 
 ####################
 # Create genome bins

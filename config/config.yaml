@@ -47,12 +47,15 @@ star:
 # SNPs and BED operations
 #########################
 
+
 bcftools:
-  max_depth: 10000          # At a position, read maximally INT reads per input file.
-  snp_quality: 20           # To perform bcftools view -j QUAL>XX filtering
-  read_depth: 10            # To perform bcftools view -i DP>XX filtering. 
-  min_base_quality: 30      # Min base quiality for a base to be considered. 
+  snp_type_to_keep: "GT='hom'"   # either "GT='het'" (heterozygous) or "GT='hom'" (keep quote ordering, change hom for het if needed)
+  max_depth: 10000               # At a position, read maximally INT reads per input file.
+  snp_quality: 20                # To perform bcftools view -j QUAL>XX filtering
+  read_depth: 10                 # To perform bcftools view -i DP>XX filtering. 
+  min_base_quality: 30           # Min base quiality for a base to be considered. 
 
 bedtools:
   window_size: 1000000 # 1Mb = 1,000,000
+
 

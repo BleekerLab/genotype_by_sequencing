@@ -47,7 +47,7 @@ This pipeline can process single or paired-end data and is mostly suited for Ill
 2. The genome sequence FASTA file will be used for the mapping step of the trimmed reads using either `bwa` or `STAR`. 
 3. The reference genome will be sliced into bins of a pre-determined size (e.g. 1Mb).  
 4. SNPs are called based on the alignment `.bam` files generating one VCF file per sample.
-5. SNPs are filtered based on a depth threshold. 
+5. SNPs are filtered based on a read depth threshold and SNP quality. 
 6. The obtained filtered VCF file(s) are converted to the BED format `.bed` to allow computation. 
 7. The number of overlapping SNPs per genome bin is computed using BEDOPS `bedmap` operator. 
 
@@ -69,7 +69,6 @@ Below is an example of a GTF file format. :warning: a real GTF file does not hav
 
 * __One .tsv file per sample summarising the number of counts per genome bin__ called `[sample name].counts.tsv`. This table is used for plotting. 
 * __fastp QC reports__: one per fastq file.
-* __bam files__: one per fastq file (or pair of fastq files). 
 
 ## Prerequisites: what you should know before using this pipeline
 - Some command of the Unix Shell to connect to a remote server where you will execute the pipeline. You can find a good tutorial from the Software Carpentry Foundation [here](https://swcarpentry.github.io/shell-novice/) and another one from Berlin Bioinformatics [here](http://bioinformatics.mdc-berlin.de/intro2UnixandSGE/unix_for_beginners/README.html).
